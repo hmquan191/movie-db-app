@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import Search from "./components/Search";
+import Spinner from "./components/Spinner";
+import MovieCard from "./components/MovieCard";
+import { useDebounce } from "react-use";
 
 const API_BASE_URL = "https://api.themoviedb.org/3";
 
@@ -19,14 +22,54 @@ const App = () => {
 
   const [errorMessage, setErrorMessage] = useState(""); // initial blank string
 
-  const fetchMOvies = async () => {
+  const [movieList, setMovieList] = useState([]); // initial blank array
+  const [isLoading, setIsLoading] = useState(false); // initial status is false;
+
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  // debounce the search term to preven making too many API request
+  // waiting for the user to stop typing for 500ms
+  // optimize search solution
+  useDebounce(() => setDebouncedSearchTerm(searchTerm), 500, [searchTerm]);
+
+  const fetchMovies = async (query = "") => {
+    setIsLoading(true); // start the countdown
+    setErrorMessage("");
+
     try {
+      // neu co query trong search thi dung cai dau tien, cai thu hai la mac dinh
+      const endpoint = query
+        ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`
+        : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+
+      const response = await fetch(endpoint, API_OPTIONS);
+
+      // if the reponse is not right
+      if (!response.ok) {
+        throw new Error("Failed to fetch movies");
+      }
+
+      // if okay
+      const data = await response.json();
+      console.log("The data", data);
+
+      if (data.Response == "False") {
+        setErrorMessage(data.Error || `Failed to fetch movies`);
+        setMovieList([]); // set the movie list to blank
+      }
+
+      // if success set movie list
+      setMovieList(data.results || []);
     } catch (error) {
       console.log(`Error fetching movies: ${error}`);
+    } finally {
+      // no matter what happens
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {}, []);
+  useEffect(() => {
+    fetchMovies(searchTerm);
+  }, [searchTerm]); // whenever it changes, fetch movies will be called
   return (
     <main>
       <div className="pattern">
@@ -41,7 +84,21 @@ const App = () => {
           </header>
 
           <section className="all-movies">
-            <h2>All Movies</h2>
+            {/* margin-top 20px */}
+            <h2 className="mt-20">All Movies</h2>
+            {isLoading ? (
+              <Spinner />
+            ) : errorMessage ? (
+              <p className="text-red-500">{errorMessage}</p>
+            ) : (
+              <ul>
+                {/* call the array by using map */}
+                {movieList.map((movie) => (
+                  // remember to give each one an id so that it wont get confusing
+                  <MovieCard key={movie.id} movie={movie} />
+                ))}
+              </ul>
+            )}
           </section>
         </div>
       </div>
